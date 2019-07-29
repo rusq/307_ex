@@ -7,6 +7,7 @@ start:	jmp	realstart
 
 password	db	32 dup (0FFh)		;16 байт - зашифр. пароль, 16 байт - мусор
 dataf		db	'307_ex.dat',0
+screen		db	'307_ex.raw',0
 fatal1		db	'Не найден файл с данными$'
 fatal2		db	'Данная программа не настроена$'
 inst_title	db	0B1h,0,29,'ПРОЧИТАЙТЕ ВНИМАТЕЛЬНО',0
@@ -47,7 +48,14 @@ pst:	mov	bx,offset password
 	ret
 
 pss:
-	xor	ax,ax
+	mov	ax,1a00h			;Is there any VGA?
+	int	10h
+	cmp	al,1ah
+	jne	@@00				;There isn't.. Fuck..
+	mov	dx,offset screen		;VGA!! Show title screen
+	call	pcxshow
+
+@@00:	xor	ax,ax
 	call	fcursor
 	call	font_l				;Loading screen font
 	call	open				;Opening file with data
@@ -59,6 +67,30 @@ pss:
 	mov	ax,1003h
 	xor	bx,bx
 	int	10h
+
+green_mile:					;Последние приготовления
+	push	es				;Перехват прерываний 23h, 1bh
+
+	mov	ax,351Bh
+	int	21h
+	mov	word ptr [old_int1Bh],bx
+	mov	ax,es
+	mov	word ptr [old_int1Bh+2],ax
+
+	mov	ax,3523h
+	int	21h
+	mov	word ptr [old_int23h],bx
+	mov	ax,es
+	mov	word ptr [old_int23h],ax
+
+	pop	es
+
+	mov	ax,251Bh
+	mov	dx,offset dummy
+	int	21h
+	mov	ax,2523h
+	mov	dx,offset dummy
+	int	21h
 
 restart:
 	mov	bl,1Bh
@@ -149,9 +181,14 @@ aa:	xor	ah,ah
 	mov	di,offset fn_hour
 	call	conv_t
 
-	mov	cx,2
+	mov	cx,1
 	mov	bp,offset q_rite
 	mov	di,offset done
+	call	conv_t
+
+	mov	cx,1
+	mov	bp,offset q_total
+	mov	di,offset [done+3]
 	call	conv_t
 
 	mov	al,q_rite
@@ -181,7 +218,22 @@ aa:	xor	ah,ah
 	jne	@@in
 	
 
-aus:	call	font_r
+aus:	
+	push	ds				;Восстановим INT Vectors
+	mov	ax,251Bh
+	mov	bx,word ptr [old_int1Bh+2]
+	mov	dx,word ptr [old_int1Bh]
+	mov	ds,bx
+	int	21h
+	mov	al,23h
+	mov	bx,word ptr cs:[old_int23h+2]
+	mov	dx,word ptr cs:[old_int23h]
+	mov	ds,bx
+	int	21h
+	pop	ds
+
+
+	call	font_r
 	mov	al,1
 	call	fcursor
 	mov	bl,7
@@ -195,11 +247,16 @@ INCLUDE INCLUDE\FONTLOAD.INC
 
 ;█████ Переменные █████
 
-q_rite		db	0			;Количество правильных ответов
+
 q_total		db	7			;Количество вопросов для задавания
 q_togo		db	5			;Барьер, кот. необходимо преодолеть
+q_rite		db	0			;Количество правильных ответов
+
 q_num		dw	0			;Количество вопросов
-l_count		dw	0			;Количество линий в буфере
+l_count		dw	0			;Количество срок в буфере
+
+INCLUDE INCLUDE\PCXSHOW.INC
+
 surname		db	20 dup (?)		;Фамилия студента
 
 ticks_start	dw	2 dup (?)		;Засекаем тики :)
@@ -220,5 +277,7 @@ t_rows		dw	1024 dup (?)		;Смещения строк
 t_answ		db	1024 dup (?)		;Количество строк в вопросе
 t_asked		db	1024 dup (?)		;Массив заданных вопросов
 
+old_int1Bh	db	4 dup (?)		;Старый вектор INT 1Bh
+old_int23h	db	4 dup (?)		;Старый вектор INT 23h
 buffer:
 	end	start

@@ -61,13 +61,16 @@ realstart:
 @@strt: mov     ax,3
         int     10h
         call    font_l
-        and     byte ptr [passf+5],0FEh
 
+	and     byte ptr [passf+5],0FEh
+
+	mov	bl,7
+	call	fclsa
         mov     ah,9
         mov     dx,offset msg
         int     21h
 
-        mov     ax,1000h
+	mov     ax,1000h
         mov     bl,01
         mov     bh,PALETTE
         int     10h
@@ -114,7 +117,7 @@ update:
         jmp     short exit
 setup:
         call    set_quest
-        jmp     short exit
+        jmp	realstart
 call_crypt:
         call    crypt           ;Шифруем пароль
         call    savepass        ;Сохраняем в 307_ex.com

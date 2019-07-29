@@ -1,3 +1,8 @@
+
+dummy	proc	far		;Заглушка для INT 1Bh, и INT 23h
+	iret
+dummy	endp
+
 ;SI - divident, DI - result, BX - divisor
 div32	proc	near
 	mov	ax,word ptr [si+2]
@@ -421,7 +426,7 @@ infobar	proc	near
 	pop	ax
 	ret
 @@info_bar	db	30h,24,0,'Нажмите цифры ответов, которые Вы считаете правильными, затем [─┘]',0
-@@title_bar	db	0B1h,0,0,'307_EX.COM: Программа тестирования ver 1.0.1 - ',0F7h,' 2k2 Gilyazov R.',0
+@@title_bar	db	0B1h,0,0,'307_EX.COM: Программа тестирования ver 1.1.0 - ',0F7h,' 2k2 Gilyazov R.',0
 infobar	endp
 
 gen_num	proc	near				;Генерирование номера вопроса

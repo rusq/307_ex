@@ -51,6 +51,7 @@ rem     Собсно, установка :)
 :copy
         copy    307_ex.com C:\307_TEST >nul
         copy    307_ex.dat C:\307_TEST >nul
+	copy	307_ex.raw C:\307_TEST >nul
         utils\p.exe -e C:\307_TEST\307_EX.COM >nul
         utils\pksht.com C:\307_TEST\307_EX.COM
         goto end

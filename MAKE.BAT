@@ -21,5 +21,6 @@ copy utils\pksht.com out\utils
 copy *.com out
 copy 307_doc.txt out
 copy readme.txt out
+copy 307_ex.raw out
 del *.com
 echo Done
