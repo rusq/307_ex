@@ -1,5 +1,5 @@
 	.model tiny
-	locals
+	locals @@
 	.186
 	.code
 
@@ -17,9 +17,11 @@ copyright	db	'SERVICE.COM - (C) 2002 Gilyazov R.',13,10
 		db	'Dedicated to the bright memory of Dmitry Gurtyak (1971-1998)',13,10,10,'$'
 keine		db	'Никаких операций не выполнено$'
 success		db	'Операция завершена успешно$'
+changed		db	'Настройки изменены$'
 msg		db	'Выберите функцию:$'
 menu		db	' Расшифровать ',0
 		db	' Зашифровать  ',0
+		db	'   Настроить  ',0
 		db	'    Отмена    ',0
 newpass		db	13,'Введите пароль для шифрования (8 символов)',13,10
 		db	'(8 символов): $'
@@ -28,14 +30,24 @@ getpass		db	13,' ',0FDh,' $'
 endpass		db	'Неверный пароль',7,'$'
 error1		db	13,10,'Вы ошиблись. Повторите попытку',13,10,10,'$'
 error2		db	13,10,'Пароль должен содержать 8 символов',13,10,10,'$'
-error3		db	13,10,'Фатальная ошибка. Продолжение невозможно$'
+error3		db	13,10,'Фатальная ошибка$'
+error4		db	'Ошибка резидента$'
+
 
 out_message	dw	keine
 
-menuitems	equ	3
+menuitems	equ	4
         
 realstart:
-	mov	ax,3
+	mov	ax,0FACEh
+	int	21h
+	cmp	ax,2002h
+	je	@@strt
+	mov	ah,9
+	mov	dx,offset error4
+	int	21h
+	ret
+@@strt:	mov	ax,3
 	int	10h
 	call	font_l
 	and	byte ptr [passf+5],0FEh
@@ -53,7 +65,7 @@ realstart:
 	int	10h
 
 	mov	ax,0001h
-	mov	bx,0F05h
+	mov	bx,0F06h
 	mov	cx,7101h
 	call	makeframe
 
@@ -74,14 +86,18 @@ realstart:
 
 	cmp	bh,01h
 	je	exit
-	cmp	bl,02h
+	cmp	bl,03h
 	je	exit
+	cmp	bl,02h
+	je	setup
 	or	bl,bl
 	je	call_decrypt
 	cmp	bl,01h
 	je	call_crypt
-	jmp	short exit
 
+setup:
+	call	set_quest
+	jmp	short exit
 call_crypt:
 	call	crypt		;Шифруем пароль
 	call	savepass	;Сохраняем в 307_ex.com
@@ -112,6 +128,118 @@ exit:
 	mov	dx,word ptr [out_message]
 	int	21h
 	ret
+
+;Изменяет настройки программы (сколько вопросов задавать, сколько надо для успеха)
+set_quest	proc	near
+
+offs	equ	1A6Dh
+
+	mov	bl,7
+	call	fclsa
+
+	mov	ax,3d02h
+	mov	dx,offset passf
+	int	21h
+	jnc	@@lseek
+	call	_fatal				;Оповещаем об ошибке открытия
+
+@@lseek:
+	mov	word ptr [@@fhandle],ax		;Сохраняем файловую рукоятку
+	mov	bx,ax
+
+	mov	ax,4200h
+	xor	cx,cx
+	mov	dx,offs
+	int	21h
+	jnc	@@fread
+
+@@fread:
+	mov	ah,3fh
+	mov	cx,2
+	mov	dx,offset @@buffer
+	int	21h
+
+	mov	ax,word ptr cs:[@@buffer]
+	or	ax,3030h
+	mov	byte ptr [msg_q_tot], al
+	mov	byte ptr [msg_q_togo], ah
+
+	mov	dx,offset @@msg
+	mov	ah,9
+	int	21h
+
+@@ask:	xor	ax,ax
+	int	16h
+
+	cmp	ah,15h
+	jne	@@aus
+
+@@change:
+	mov	ah,9
+	mov	dx,offset @@chg_q_tot
+	int	21h
+
+	mov	di,offset @@q_total
+	mov	cx,1
+	call	num_field
+
+	cmp	byte ptr [@@q_total],'0'
+	je	@@change
+
+
+@@reask:
+	mov	ah,9
+	mov	dx,offset @@chg_q_togo
+	int	21h
+
+	mov	di,offset @@q_togo
+	mov	cx,1
+	call	num_field
+
+	mov	al,byte ptr [@@q_togo]
+	cmp	al,'0'
+	je	@@reask
+	cmp	al,byte ptr [@@q_total]
+	ja	@@reask
+
+	mov	ax,word ptr [@@buffer]
+	and	ax,0F0Fh
+	mov	word ptr [@@buffer],ax
+
+	mov	ax,4200h
+	mov	bx,word ptr [@@fhandle]
+	xor	cx,cx
+	mov	dx,offs
+	int	21h
+
+	mov	ah,40h
+	mov	cx,2
+	mov	dx,offset @@buffer
+	int	21h
+
+	mov	word ptr [out_message],offset changed
+
+@@aus:	mov	ah,3eh
+	mov	bx,[@@fhandle]
+	int	21h
+
+	ret
+@@fhandle	dw	?
+@@buffer:
+@@q_total	db	?
+@@q_togo	db	?
+@@msg		db	'Настройки программы:',13,10
+		db	'Задаётся вопросов            : '
+msg_q_tot	db	'0',13,10
+		db	'Правильных ответов для успеха: '
+msg_q_togo	db	'0',13,10,10
+		db	'Нажмите клавишу [Y] для изменения, или любую другую для отмены$'
+
+
+@@chg_q_tot	db	13,10,'Задаётся вопросов            : $'
+@@chg_q_togo	db	13,10,'Правильных ответов для успеха: $'
+
+set_quest	endp
 
 INCLUDE INCLUDE\SERVICE.INC	;Здесь всякие рулезные процедурки :)
 INCLUDE INCLUDE\FONTLOAD.INC

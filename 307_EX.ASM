@@ -7,16 +7,34 @@ start:	jmp	realstart
 
 password	db	32 dup (0FFh)		;16 байт - зашифр. пароль, 16 байт - мусор
 dataf		db	'307_ex.dat',0
-fatal1		db	'Не найден файл с данными. Продолжение невозможно.$'
+fatal1		db	'Не найден файл с данными$'
 fatal2		db	'Данная программа не настроена$'
-inst_title	db	0B1h,0,29,'ПРОЧИТАЙТЕ ВНИМАТЕЛЬНО!',0
+inst_title	db	0B1h,0,29,'ПРОЧИТАЙТЕ ВНИМАТЕЛЬНО',0
 instruc		db	10,'   Вам предлагается ответить на семь вопросов.',13,10
 		db	'Для выбора ответа следует использовать клавиши [1]-[9].',13,10
-		db	'Клавиша [Enter] служит для подтверждения выбора и перехода на следующий вопрос.',13,10
+		db	'Клавиша [─┘] служит для подтверждения выбора и перехода на следующий вопрос.',13,10
 		db	'   Между вопросами возможна задержка из-за несовершенства алгоритма генерации ',13,10
 		db	'случайных чисел (зависит от тактовой частоты CPU)',13,10
 		db	'   Удачи!',13,10,10
-		db	'Нажмите любую клавишу для начала тестирования...$'
+		db	'Нажмите любую клавишу...$'
+ask4surname	db	'Введите вашу фамилию: $'
+sur_stat	db	30h,24,0,'Используйте только русские буквы, по окончанию ввода нажмите [─┘]',0
+stat_arsehole	db	0C0h,24,0,'ТЕСТ ЗАВАЛЕН',0
+stat_botan	db	0A0h,24,0,'Поздравляю, ТЕСТ ПРОЙДЕН',0
+
+final_sur	db	'Фамилия        : $'
+
+final_screen	db	13,10
+		db	'Время начала   : '
+st_hour		db	'00:00:00'
+		db	13,10
+final_end	db	'Время окончания: '
+fn_hour		db	'00:00:00'
+		db	13,10
+final_q		db	'Ваш результат  : '
+done		db	'00/00'
+		db	13,10,10
+		db	'Позовите преподавателя.$'
 realstart:
 	cld
 	mov	ax,0FACEh
@@ -61,218 +79,118 @@ pss:
 	xor	ax,ax
 	int	16h
 
+;Спросим фамилию :)
+@@reask:
+	mov	ax,01
+	call	fcursor
+	mov	bl,1Bh
 	call	infobar
-	
-exloop:	call	gen_num
-	call	ask
+	mov	si,offset sur_stat
+	call	change_stat
+	mov	ah,9
+	mov	dx,offset ask4surname
+	int	21h
 
+	mov	di,offset surname
+	mov	cx,19
+	mov	bh,'А'
+	mov	bl,'я'
+	call	field
+	cmp	ah,01					;Студент пожелал остаться неизвестным?
+	je	@@reask					;Да - спросим ещё разок :)
+	cmp	cx,2					;Фамилия должна быть хотя-бы 2 символа ("Тё" :) )
+	jb	@@reask
+	mov	bx,cx					;Пихаем $ в конец :)
+	mov	byte ptr [surname+bx],'$'
+	xor	ax,ax					;Выключим курсор нах!
+	call	fcursor
+
+	mov	bx,offset s_time			;Запомним время начала
+	call	gettime
+	mov	cx,3
+	mov	bp,offset s_time
+	mov	di,offset st_hour
+	call	conv_t
+
+	xor	cx,cx
+	mov	cl,byte ptr [q_total]
+;-------------------------
+;	jmp	short aa
+;-------------------------
+exloop:	push	cx
+	mov	bl,1Bh
+	call	infobar
+	call	gen_num
+	call	ask
+	cmp	bh,bl
+	je	@@ex10
+	jmp	short @@ex20
+@@ex10:	inc	byte ptr [q_rite]
+@@ex20:	pop	cx
+	loop	exloop
+
+aa:	mov	bx,offset s_time
+	call	gettime
+
+	mov	cx,3
+	mov	bp,offset s_time
+	mov	di,offset fn_hour
+	call	conv_t
+
+	mov	cx,2
+	mov	bp,offset q_rite
+	mov	di,offset done
+	call	conv_t
+
+	mov	al,q_rite
+	cmp	al,q_togo
+	jb	@@dumb
+	mov	word ptr [stat],offset stat_botan
+	mov	bl,2Fh
+	jmp	short @@qq
+@@dumb:
+	mov	word ptr [stat],offset stat_arsehole
+	mov	bl,4Bh
+
+@@qq:	call	infobar
+	mov	si,word ptr [stat]
+	call	change_stat
+	mov	ah,9
+	mov	dx,offset final_sur
+	int	21h
+	mov	dx,offset surname
+	int	21h
+	mov	dx,offset final_screen
+	int	21h
+
+@@in:	xor	ax,ax
+	int	16h
+	cmp	ax,2308h			;^H
+	jne	@@in
 	
 
 aus:	call	font_r
 	mov	al,1
 	call	fcursor
+	mov	bl,7
+	call	fclsa
 	ret
 
-;ASK: Задаёт вопрос номер AX
-;На входе:
-;	AX - номер вопроса
-;На выходе: 
-;	BH - всего правильных ответов
-;	BL - выбрано правильных ответов
-ask	proc	near
 
-	mov	word ptr cs:[@@rite],0			;Инициализация переменных
-	mov	byte ptr cs:[@@count],0
-
-	mov	bx,ax
-	push	ax
-
-	mov	cx,bx
-	mov	bp,bx
-	xor	bx,bx
-	dec	bp
-	js	@@qq
-@@00:	mov	al,byte ptr [t_answ+bp]
-	xor	ah,ah
-	add	bx,ax
-	inc	bx
-	inc	bx
-	dec	bp
-	loop	@@00
-
-@@qq:	mov	word ptr cs:[@@ofs_in_rows],bx	
-
-	pop	bx
-	mov	cl,byte ptr [t_answ+bx]
-	mov	byte ptr cs:[@@answ],cl
-
-	mov	bx,word ptr cs:[@@ofs_in_rows]
-
-	shl	bx,1				;Multiplying by 2 to receive offset in t_rows
-
-	mov	si,word ptr [t_rows+bx]		;Printing question
-	push	bx
-	mov	bl,byte ptr cs:[@@NoLite]
-	mov	dh,1
-	call	w_wrap
-	pop	bx
-
-	add	bx,4				;Skipping amount of answers (we
-	mov	word ptr cs:[@@rite],0
-	mov	ax,word ptr [t_rows+bx]
-	mov	word ptr cs:[@@beg_ans],ax		;Адрес первого ответа
-
-@@10:	mov	si,word ptr [t_rows+bx]
-	push	bx
-	mov	bl,byte ptr cs:[@@NoLite]
-	push	bx
-	xor	bx,bx
-	mov	bl,byte ptr cs:[@@count]
-	mov	byte ptr cs:[@@screen_ans+bx],dh
-	pop	bx
-	call	w_wrap
-	inc	byte ptr cs:[@@count]
-	pop	bx
-	cmp	dl,1
-	jne	@@20
-	inc	byte ptr cs:[@@rite+1]
-@@20:	inc	bx
-	inc	bx
-	loop	@@10
-
-@@inkey:
-	xor	ax,ax
-	int	16h
-
-	cmp	ah,1Ch
-	jne	@@_1
-	jmp	@@return
-@@_1:	cmp	al,31h
-	jb	@@inkey
-	cmp	al,39h
-	ja	@@inkey
-	and	al,0Fh					;Преобразуем к двоичной байде :)
-	cmp	al,byte ptr cs:[@@answ]
-	ja	@@inkey
-
-	xor	ah,ah
-	mov	bx,ax
-	dec	bx
-	push	bx
-	mov	dh,byte ptr cs:[@@screen_ans+bx]
-	mov	ax,word ptr cs:[@@ofs_in_rows]		;Указатель на вопрос
-	shl	ax,1
-	add	ax,4					;Пропускаем вопрос и проч
-	shl	bx,1					;Указатель на пункт * 2
-	add	bx,ax
-	mov	si,word ptr [t_rows+bx]
-	pop	bx
-	push	bx
-	cmp	byte ptr cs:[@@marked_ans+bx],0		;Текущий вопрос помечен?
-	jne	@@unmark				;Подопытный решил отменить вопрос.
-
-	mov	bl,byte ptr cs:[@@HiLite]
-	call	w_wrap
-	pop	bx
-	mov	byte ptr cs:[@@marked_ans+bx],1
-	jmp	@@inkey
-
-@@unmark:
-	mov	bl,byte ptr cs:[@@NoLite]
-	call	w_wrap
-	pop	bx
-	mov	byte ptr cs:[@@marked_ans+bx],0
-	jmp	@@inkey
-	
-
-@@return:
-	mov	cl,byte ptr cs:[@@answ]
-	xor	ch,ch
-	xor	ax,ax
-	mov	bx,cx
-@@99:	dec	bx
-	add	al,byte ptr [@@marked_ans+bx]
-	loop	@@99
-	or	ax,ax
-	jnz	@@out					;Нет - на inkey
-	mov	si,offset cs:[@@stat_err1]
-	call	change_stat
-	jmp	@@inkey
-
-@@out:	
-;Подсчёт количества правильных и не - ответов
-	mov	bx,word ptr cs:[@@ofs_in_rows]
-	add	bx,2
-	shl	bx,1
-	xor	cx,cx
-	mov	cl,byte ptr cs:[@@answ]
-	mov	bp,cx
-
-@@o10:	dec	bp
-	mov	al,byte ptr cs:[@@marked_ans+bp]
-	or	al,al
-	jz	@@o99					;Следующий
-
-	push	bp
-	push	bx
-	shl	bp,1
-	add	bx,bp
-	mov	si,word ptr [t_rows+bx]
-	call	l_test
-	pop	bx
-	pop	bp
-
-	cmp	dl,1
-	je	@@o80
-	mov	byte ptr cs:[@@rite],0
-	jmp	short @@xit
-
-@@o80:
-	inc	byte ptr cs:[@@rite]
-@@o99:	loop	@@o10
-
-@@xit:	mov	bx,word ptr cs:[@@rite]
-	ret
-
-@@NoLite	db	1Bh
-@@HiLite	db	30h
-
-@@answ		db	0				;Количество ответов
-@@rite		db	0				;Правильно отвечено
-		db	0				;Всего вопросов
-@@que		dw	0				;Номер вопроса
-@@ofs_in_rows	dw	0				;Смещение вопроса в Общей куче
-@@screen_ans	db	9 dup (0)
-@@marked_ans	db	9 dup (0)
-@@count		db	0
-@@beg_ans	dw	0
-@@stat_err1	db	34h,24,0,'Вы должны выбрать хотя бы один пункт',0
-ask	endp
-
-;На входе: Si - адрес строки
-
-change_stat	proc	near
-	push	ax
-	push	bx
-	push	cx
-	mov	al,7
-	int	29h
-	mov	bx,1830h
-	call	faline
-	call	fwritea
-	pop	cx
-	pop	bx
-	pop	ax
-	ret
-change_stat	endp
+INCLUDE INCLUDE\NUM2ASC.PRC
 INCLUDE INCLUDE\307_EX.INC			;Процедурки :)
 INCLUDE INCLUDE\FONTLOAD.INC
 
 ;█████ Переменные █████
 
-q_asked		db	0			;Количество уже заданных вопросов
+q_rite		db	0			;Количество правильных ответов
+q_total		db	7			;Количество вопросов для задавания
+q_togo		db	5			;Барьер, кот. необходимо преодолеть
 q_num		dw	0			;Количество вопросов
 l_count		dw	0			;Количество линий в буфере
+surname		db	20 dup (?)		;Фамилия студента
+s_time		db	3 dup (?)		;-- Время начала|окончания опроса
+stat		dw	?
 fhandle		dw	?
 fsize		dw	?			;Размер файла
 bread		dw	?

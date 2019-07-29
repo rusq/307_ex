@@ -1,39 +1,331 @@
+;Процедура конвертирования времени
+;На входе BP - адрес конвертируемого времени, DI - адрес буфера для времени, CX - количество разрядов
+conv_t	proc	near
+	push	ax
+	push	bx
+
+	xor	ax,ax
+@@10:	push	cx
+	mov	al,byte ptr [bp]
+	mov	bx,10
+	mov	cx,2
+	call	NumToASCII
+	add	di,3
+	inc	bp
+	pop	cx
+	loop	@@10
+
+	pop	bx
+	pop	ax
+
+	ret
+conv_t	endp
+
+;На входе - BX - адрес 3х байтного буфера (последовательность Часы, Минуты, Секунды)
+gettime	proc	near
+	push	ax
+	push	cx
+	push	dx
+	mov	ah,2ch
+	int	21h
+	mov	byte ptr [bx],ch
+	mov	byte ptr [bx+1],cl
+	mov	byte ptr [bx+2],dh
+	pop	dx cx ax
+	ret
+gettime	endp
+
+;--------------------------------------------------
+; FIELD: gets number and stores it in ax
+;   In:
+;     di : address of buffer
+;     cx : number of digits to read
+;     bh : lo char (i.e. 'A')
+;     bl : hi char (i.e. 'Z')
+;   Out:
+;     String in buffer, or, if Enter or Esc was pressed returns scancodes of them
+;--------------------------------------------------
+field		proc	near
+		jcxz	@@00
+		push	dx
+		push	di
+		push	bp
+		push	bx
+		mov	bp,sp
+
+		mov	dx,cx
+		xor	cx,cx
+		xor	bx,bx
+@@10:		xor	ax,ax
+		int	16h
+
+		cmp	ah,1Ch
+		je	@@99
+
+		cmp	ah,01h
+		je	@@99
+		
+@@20:		mov	ah,0Eh
+		cmp	al,8
+		jne	@@30
+		cmp	cx,0
+		je	@@10
+		dec	cx
+		dec	di
+		
+		int	10h
+		mov	al,' '
+		int	10h
+		mov	al,8
+		int	10h
+
+@@30:		mov	bx,word ptr [bp]
+		cmp	al,bh
+		jb	@@10
+		cmp	al,bl
+		ja	@@10
+		xor	bx,bx
+
+		cmp	cx,dx
+		je	@@10
+		int	10h
+		inc	cx
+		stosb
+		jmp	short @@10
+
+@@99:		pop	bx
+		pop	bp
+		pop	di
+		pop	dx
+@@00:		ret
+field		endp
+
+;ASK: Задаёт вопрос номер AX
+;На входе:
+;	AX - номер вопроса
+;На выходе: 
+;	BH - всего правильных ответов
+;	BL - выбрано правильных ответов
+ask	proc	near
+
+	mov	word ptr cs:[@@rite],0			;Инициализация переменных
+	mov	byte ptr cs:[@@count],0
+	push	bx
+	push	cx
+	mov	cx,10
+	mov	bx,cx
+@@cln:	dec	bx
+	mov	byte ptr cs:[@@screen_ans+bx],0
+	mov	byte ptr cs:[@@marked_ans+bx],0
+	loop	@@cln
+
+	pop	cx
+	pop	bx
+
+	mov	bx,ax
+	push	ax
+
+	mov	cx,bx
+	mov	bp,bx
+	xor	bx,bx
+	dec	bp
+	js	@@qq
+@@00:	mov	al,byte ptr [t_answ+bp]
+	xor	ah,ah
+	add	bx,ax
+	inc	bx
+	inc	bx
+	dec	bp
+	loop	@@00
+
+@@qq:	mov	word ptr cs:[@@ofs_in_rows],bx	
+
+	pop	bx
+	mov	cl,byte ptr [t_answ+bx]
+	mov	byte ptr cs:[@@answ],cl
+
+	mov	bx,word ptr cs:[@@ofs_in_rows]
+
+	shl	bx,1				;Multiplying by 2 to receive offset in t_rows
+
+	mov	si,word ptr [t_rows+bx]		;Printing question
+	push	bx
+	mov	bl,1Fh
+	mov	dh,1
+	call	w_wrap
+	pop	bx
+
+	add	bx,4				;Skipping amount of answers (we
+	mov	word ptr cs:[@@rite],0
+	mov	ax,word ptr [t_rows+bx]
+	mov	word ptr cs:[@@beg_ans],ax		;Адрес первого ответа
+
+@@10:	mov	si,word ptr [t_rows+bx]
+	push	bx
+	mov	bl,byte ptr cs:[@@NoLite]
+	push	bx
+	xor	bx,bx
+	mov	bl,byte ptr cs:[@@count]
+	mov	byte ptr cs:[@@screen_ans+bx],dh
+	pop	bx
+	call	w_wrap
+	inc	byte ptr cs:[@@count]
+	pop	bx
+	cmp	dl,1
+	jne	@@20
+	inc	byte ptr cs:[@@rite+1]
+@@20:	inc	bx
+	inc	bx
+	loop	@@10
+
+@@inkey:
+	xor	ax,ax
+	int	16h
+
+	cmp	ah,1Ch
+	jne	@@_1
+	jmp	short @@return
+@@_1:	cmp	al,31h
+	jb	@@inkey
+	cmp	al,39h
+	ja	@@inkey
+	and	al,0Fh					;Преобразуем к двоичной байде :)
+	cmp	al,byte ptr cs:[@@answ]
+	ja	@@inkey
+
+	xor	ah,ah
+	mov	bx,ax
+	dec	bx
+	push	bx
+	mov	dh,byte ptr cs:[@@screen_ans+bx]
+	mov	ax,word ptr cs:[@@ofs_in_rows]		;Указатель на вопрос
+	shl	ax,1
+	add	ax,4					;Пропускаем вопрос и проч
+	shl	bx,1					;Указатель на пункт * 2
+	add	bx,ax
+	mov	si,word ptr [t_rows+bx]
+	pop	bx
+	push	bx
+	cmp	byte ptr cs:[@@marked_ans+bx],0		;Текущий вопрос помечен?
+	jne	@@unmark				;Подопытный решил отменить вопрос.
+
+	mov	bl,byte ptr cs:[@@HiLite]
+	call	w_wrap
+	pop	bx
+	mov	byte ptr cs:[@@marked_ans+bx],1
+	jmp	@@inkey
+
+@@unmark:
+	mov	bl,byte ptr cs:[@@NoLite]
+	call	w_wrap
+	pop	bx
+	mov	byte ptr cs:[@@marked_ans+bx],0
+	jmp	@@inkey
+	
+
+@@return:
+	mov	cl,byte ptr cs:[@@answ]
+	xor	ch,ch
+	xor	ax,ax
+	mov	bx,cx
+@@99:	dec	bx
+	add	al,byte ptr [@@marked_ans+bx]
+	loop	@@99
+	or	ax,ax
+	jnz	@@out					;Нет - на inkey
+	mov	si,offset cs:[@@stat_err1]
+	call	change_stat
+	jmp	@@inkey
+
+@@out:	
+;Подсчёт количества правильных и неправильных ответов
+	mov	bx,word ptr cs:[@@ofs_in_rows]
+	add	bx,2
+	shl	bx,1
+	xor	cx,cx
+	mov	cl,byte ptr cs:[@@answ]
+	mov	bp,cx
+
+@@o10:	dec	bp
+	mov	al,byte ptr cs:[@@marked_ans+bp]
+	or	al,al
+	jz	@@o99					;Следующий
+
+	push	bp
+	push	bx
+	shl	bp,1
+	add	bx,bp
+	mov	si,word ptr [t_rows+bx]
+	call	l_test
+	pop	bx
+	pop	bp
+
+	cmp	dl,1
+	je	@@o80
+	mov	byte ptr cs:[@@rite],0
+	jmp	short @@xit
+
+@@o80:
+	inc	byte ptr cs:[@@rite]
+@@o99:	loop	@@o10
+
+@@xit:	mov	bx,word ptr cs:[@@rite]
+	ret
+
+@@NoLite	db	1Bh
+@@HiLite	db	30h
+
+@@answ		db	0				;Количество ответов
+@@rite		db	0				;Правильно отвечено
+		db	0				;Всего вопросов
+@@que		dw	0				;Номер вопроса
+@@ofs_in_rows	dw	0				;Смещение вопроса в Общей куче
+@@screen_ans	db	9 dup (0)
+@@marked_ans	db	9 dup (0)
+@@count		db	0
+@@beg_ans	dw	0
+@@stat_err1	db	4Fh,24,0,'Вы должны выбрать хотя бы один пункт',0
+ask	endp
+;На входе: Si - адрес строки
+
+change_stat	proc	near
+	push	ax
+	push	bx
+	push	cx
+	push	dx
+	mov	ah,03
+	xor	bx,bx
+	int	10h
+	push	dx
+	mov	bh,24
+	mov	bl,byte ptr [si]
+	call	faline
+	call	fwritea
+	mov	ah,02
+	xor	bx,bx
+	pop	dx
+	int	10h
+	pop	dx
+	pop	cx
+	pop	bx
+	pop	ax
+	ret
+change_stat	endp
+
 ;Тест строк на помеченность
 ;На входе: 
 ;	   SI - адрес строки. 
 ;На выходе: DL - помеченая строка или нет? (FF - если нет, 1 если да)
 ;Строка должна кончаться символом 0d (идеально для текстовых файлов)
 l_test	PROC	NEAR		
-	push	cx
-	push	bp
 	push	ax
 
-	mov	cx,0FFFFh
-	xor	bp,bp
-	xor	dl,dl
-@@10:	lodsb
-	cmp	al,0Dh
-	je	@@99
-	cmp	al,'@'			;Символ начала правильного ответа
-	jne	@@11
+	mov	dl,0ffh
+	lodsb
+	cmp	al,'@'
+	jne	@@100
 	mov	dl,1
-	jmp	short @@15
-@@11:	cmp	al,'\'			;Символ начала вопроса
-	je	@@15
-	inc	bp
-	cmp	bp,word ptr margin
-	jb	@@12
-	cmp	al,' '		; Это пробел?
-	jne	@@12
-@@12:
-@@15:	loop	@@10
-@@99:
-	cmp	dl,1
-	je	@@100
-	mov	dl,0FFh
 @@100:	pop	ax
-	pop	bp
-	pop	cx
 	ret
 
 l_test	ENDP
@@ -75,7 +367,8 @@ infobar	proc	near
 	push	ax
 	push	bx
 	push	dx
-	mov	bl,17h
+	push	si
+;	mov	bl,1Bh
 	call	fclsa
 	mov	bx,0B1h
 	call	faline
@@ -89,11 +382,12 @@ infobar	proc	near
 	xor	bx,bx
 	mov	dx,0100h
 	int	10h
+	pop	si
 	pop	dx
 	pop	bx
 	pop	ax
 	ret
-@@info_bar	db	30h,24,0,'Нажмите цифры ответов, которые Вы считаете правильными, затем [Enter]',0
+@@info_bar	db	30h,24,0,'Нажмите цифры ответов, которые Вы считаете правильными, затем [─┘]',0
 @@title_bar	db	0B1h,0,0,'307_EX.COM: Тест по Экологии ver 1.0beta - ',0F7h,' 2k2 Gilyazov R.',0
 infobar	endp
 
@@ -340,7 +634,8 @@ w_wrap	PROC	NEAR
 	int	10h
 	pop	bx
 
-	mov	word ptr [margin],63
+	mov	word ptr cs:[@@margin],65
+	mov	word ptr cs:[@@line],0
 	mov	cx,0FFFFh
 	xor	bp,bp
 	xor	dl,dl
@@ -354,18 +649,22 @@ w_wrap	PROC	NEAR
 @@11:	cmp	al,'\'			;Символ начала вопроса
 	je	@@15
 	inc	bp
-	cmp	bp,word ptr margin
+	cmp	bp,word ptr cs:[@@margin]
 	jb	@@12
 	cmp	al,' '		; Это пробел?
 	jne	@@12
-	add	word ptr margin,80
+	add	word ptr cs:[@@margin],80
+	add	word ptr cs:[@@line],80
+	mov	bp,word ptr cs:[@@line]
 	mov	al,13
 	int	29h
 	mov	al,10
 	int	29h
 	mov	al,' '
 	call	@@putch
+	inc	bp
 	call	@@putch
+	inc	bp
 @@12:	call	@@putch
 @@15:	loop	@@10
 @@99:	int	29h
@@ -402,7 +701,8 @@ w_wrap	PROC	NEAR
 	pop	bx
 	pop	ax
 	ret
-margin	dw	63
+@@margin	dw	?
+@@line		dw	?
 w_wrap	ENDP
 
 bufferize	proc	near		;Буфферизация файла с вопросами

@@ -4,19 +4,24 @@
 start:
 	mov	si,offset string
 	mov	bl,1fh
+	mov	dh,24
 	call	w_wrap
 	ret
 
-;Перенос слов, которые не влезают в 80 символов
-;На входе: SI - адрес строки. 
-;	   BL - цвет символов
-;Строка должна кончаться символом 0d (идеально для текстовых файлов)
-;Используются средства BIOS.
 w_wrap	PROC	NEAR		
 	push	cx
 	push	bp
 	push	ax
-	mov	word ptr [margin],63
+
+	push	bx
+	mov	ah,02			;Устанавливаем курсор на начало строки DH
+	xor	bx,bx
+	xor	dl,dl
+	int	10h
+	pop	bx
+
+	mov	word ptr cs:[@@margin],65
+	mov	word ptr cs:[@@line],0
 	mov	cx,0FFFFh
 	xor	bp,bp
 	xor	dl,dl
@@ -25,30 +30,43 @@ w_wrap	PROC	NEAR
 	je	@@99
 	cmp	al,'@'			;Символ начала правильного ответа
 	jne	@@11
-	inc	dl
+	mov	dl,1
 	jmp	short @@15
-	je	@@15
 @@11:	cmp	al,'\'			;Символ начала вопроса
 	je	@@15
 	inc	bp
-	cmp	bp,word ptr margin
+	cmp	bp,word ptr cs:[@@margin]
 	jb	@@12
 	cmp	al,' '		; Это пробел?
 	jne	@@12
-	add	word ptr margin,80
+	add	word ptr cs:[@@margin],80
+	add	word ptr cs:[@@line],80
+	mov	bp,word ptr cs:[@@line]
 	mov	al,13
 	int	29h
 	mov	al,10
 	int	29h
 	mov	al,' '
 	call	@@putch
+	inc	bp
 	call	@@putch
+	inc	bp
 @@12:	call	@@putch
 @@15:	loop	@@10
 @@99:	int	29h
 	mov	al,10
 	int	29h
-	pop	ax
+	push	dx
+	mov	ah,03
+	xor	bx,bx
+	int	10h
+	xchg	dh,ch
+	pop	dx
+	xchg	ch,dh
+	cmp	dl,1
+	je	@@100
+	mov	dl,0FFh
+@@100:	pop	ax
 	pop	bp
 	pop	cx
 	ret
@@ -69,10 +87,11 @@ w_wrap	PROC	NEAR
 	pop	bx
 	pop	ax
 	ret
-margin	dw	63
-
+@@margin	dw	?
+@@line		dw	?
 w_wrap	ENDP
 
-string	db	'\Входящие в биогеоценоз живые существа со временем меняются, эволюционируют. Значит ли это, что биогеоценозы со временем выходят из устойчивого равновесия?',13
+
+string	db	'4. Неизвестно. Свидетельствами, подтверждающими справедливость теории естественного отбора, современная наука не располагает, но на её справедливость косвенно указывают многочисленные успехи искуственного отбора, проводимого человеком на практике.',13
 s_len	equ	$-offset string
 	END	start

@@ -1,4 +1,59 @@
 ;INCLUDE FILE FOR SERVICE.ASM
+;--------------------------------------------------
+; FIELD: gets number and stores it in ax
+;   In:
+;     di : address of buffer
+;     cx : number of digits to read
+;   Out:
+;     String in buffer, or, if Enter or Esc was pressed returns scancodes of them
+;--------------------------------------------------
+num_field	proc	near
+		jcxz	@@00
+		push	dx
+		push	di
+
+		mov	dx,cx
+		xor	cx,cx
+		xor	bx,bx
+@@10:		xor	ax,ax
+		int	16h
+
+		cmp	ah,1Ch
+		je	@@99
+
+@@20:		mov	ah,0Eh
+		cmp	al,8
+		jne	@@30
+		cmp	cx,0
+		je	@@10
+		dec	cx
+		dec	di
+		
+		int	10h
+		mov	al,' '
+		int	10h
+		mov	al,8
+		int	10h
+
+@@30:		cmp	al,30h
+		jb	@@10
+		cmp	al,39h
+		ja	@@10
+		xor	bx,bx
+
+		cmp	cx,dx
+		je	@@10
+		int	10h
+		inc	cx
+		stosb
+		jmp	short @@10
+
+@@99:		or	cx,cx
+		jz	@@10
+		pop	di
+		pop	dx
+@@00:		ret
+num_field	endp
 
 decrypt	proc	near
 	mov	bl,7

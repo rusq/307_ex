@@ -11,5 +11,7 @@ copy install\install.com .
 del install\install.com
 utils\p.exe install.com
 copy *.com out
+copy 307_doc.txt out
+copy service.txt out
 del *.com
 echo Done
