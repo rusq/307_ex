@@ -15,7 +15,7 @@
         if      -%1==- %0 DOS
         if      -%1==- goto end
         if      -%2==-remove goto remove
-        echo Устанавливаемся на диск C:...
+        echo Installing on drive C:...
         if not  exist C:\%1\nul         goto error1
 
 rem     Собсно, установка :)
@@ -35,11 +35,11 @@ rem     Собсно, установка :)
         echo Не найден один или несколько программных компонентов.
         goto    end
 :error1
-        echo Каталог C:\%1 не найден. Установка прервана.
-        echo Если MS-DOS находится в другом каталоге, укажите его
-        echo в качестве первого параметра в командной строке.
+        echo The directory C:\%1 not found. Installaton terminated.
+        echo If MS-DOS installed to other directory, run this programme
+        echo with MS-DOS dir name as a first parameter
         echo.
-        echo Например, если DOS установлен в каталоге C:\MSDOS следует запускать так:
+        echo I.e. if MSDOS installed in directory C:\MSDOS you should type:
         echo INSTALL MSDOS
         goto end
 
@@ -52,14 +52,14 @@ rem     Собсно, установка :)
         copy    307_ex.com C:\307_TEST >nul
         copy    307_ex.dat C:\307_TEST >nul
         utils\p.exe -e C:\307_TEST\307_EX.COM >nul
-        utils\pksht.com C:\307_TEST\307_EX.COM
+        utils\pksht C:\307_TEST\307_EX.COM
         goto end
 :msavt
         msavt.com
         goto    only_307
 :error3
         echo.
-        echo Непредвиденная ошибка. Удаляю все файлы
+        echo Unrecoverable error.
 :remove
         del     C:\307_TEST\307_EX.COM
         del     C:\307_TEST\307_EX.TXT
@@ -69,4 +69,3 @@ rem     Собсно, установка :)
 :end
         if not  -%1==- echo.
         if not  -%1==- echo (C) 2002 Gilyazov R..
-

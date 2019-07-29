@@ -183,6 +183,9 @@ ask	proc	near
 	mov	bl,1Fh
 	mov	dh,1
 	call	w_wrap
+
+	inc	dh				;!! Пропускаем строку!
+
 	pop	bx
 
 	add	bx,4				;Skipping amount of answers (we
@@ -418,13 +421,13 @@ infobar	proc	near
 	pop	ax
 	ret
 @@info_bar	db	30h,24,0,'Нажмите цифры ответов, которые Вы считаете правильными, затем [─┘]',0
-@@title_bar	db	0B1h,0,0,'307_EX.COM: Тест по Экологии ver 1.0 - ',0F7h,' 2k2 Gilyazov R.',0
+@@title_bar	db	0B1h,0,0,'307_EX.COM: Программа тестирования ver 1.0.1 - ',0F7h,' 2k2 Gilyazov R.',0
 infobar	endp
 
 gen_num	proc	near				;Генерирование номера вопроса
         push	bx
 	push	dx
-	mov	dx,word ptr [q_num]
+	mov	dx,word ptr [q_num]		;всего вопросов
 @@10:	call	rand16
 	cmp	ax,dx
 	ja	@@10

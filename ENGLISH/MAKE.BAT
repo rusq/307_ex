@@ -6,8 +6,8 @@ tasm *.asm
 for %%i in (*.obj) do tlink /t/x %%i
 utils\p.exe -e msavt.com
 utils\p.exe -e service.com
-utils\pksht.com msavt.com
-utils\pksht.com service.com
+utils\pksht msavt.com
+utils\pksht service.com
 copy 307_ex.txt out
 del *.obj
 utils\turbobat.exe install\install.bat

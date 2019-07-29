@@ -13,27 +13,28 @@ file_dat        db      '307_ex.dat',0
 file_txt        db      '307_ex.txt',0
 
 copyright       db      'SERVICE.COM - (C) 2002 Gilyazov R.',13,10
-                db      '8x16 Russian VGA font (C) 1989 Pete I. Kvitek',13,10,'$'
-keine           db      'Никаких операций не выполнено$'
-success         db      'Операция завершена успешно$'
-changed         db      'Настройки изменены$'
-updating        db      'Файлы обновляются',13,10,'$'
-msg             db      'Выберите функцию:$'
-menu            db      ' Обновить     ',0
-                db      ' Расшифровать ',0
-                db      ' Зашифровать  ',0
-                db      ' Настроить    ',0
-                db      ' Отмена       ',0
-newpass         db      13,'Введите пароль для шифрования',13,10
-                db      '(8 символов): $'
-confirm         db      13,10,'Повторите пароль: $'
+                db      '8x16 Russian VGA font (C) 1989 Pete I. Kvitek',13,10
+                db      'Dedicated to the bright memory of Dmitry Gurtyak (1971-1998)',13,10,10,'$'
+keine           db      'No actions taken$'
+success         db      'Operation successfully completed$'
+changed         db      'Parameters changed$'
+updating        db      'Updating . . .',13,10,'$'
+msg             db      'Select the function$'
+menu            db      ' Update       ',0
+                db      ' Decipher     ',0
+                db      ' Cipher       ',0
+                db      ' Setup        ',0
+                db      ' Exit         ',0
+newpass         db      13,'Input keyword',13,10
+                db      '(8 chars): $'
+confirm         db      13,10,'Repeat keyword: $'
 getpass         db      13,' ',0FDh,' $'
-endpass         db      'Неверный пароль',7,'$'
-error1          db      13,10,'Вы ошиблись. Повторите попытку',13,10,10,'$'
-error2          db      13,10,'Пароль должен содержать 8 символов',13,10,10,'$'
-error3          db      13,10,'Фатальная ошибка$'
-error4          db      'Ошибка резидента$'
-error5          db      'Эта программа является частью INSTALL.COM!$'
+endpass         db      'Wrong password',7,'$'
+error1          db      13,10,'Not matched. Retry',13,10,10,'$'
+error2          db      13,10,'Password must be 8 chars long',13,10,10,'$'
+error3          db      13,10,'Fatal error$'
+error4          db      'TSR reported error$'
+error5          db      'This programme is a part of the INSTALL.COM!$'
 
 
 out_message     dw      keine
