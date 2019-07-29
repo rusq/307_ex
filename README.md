@@ -49,8 +49,6 @@
 
 Я не знаю зачем я делал ENGLISH версию, наверное было не чем заняться.
 
-### Source snapshot
-
 [1]:http://forum.mai.exler.ru/?s=372984dfb5df0e4d05e1968ebdc0f2c5&topic=6740
 [2]:https://archive.org/details/TBT321_ZIP
 [3]:http://www.dcee.net/Files/Archiver/pklte150.exe
