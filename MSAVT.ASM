@@ -150,4 +150,5 @@ init:
 
 not_install:
 	ret
+	db	256 dup ('MSAV')
 	end	start

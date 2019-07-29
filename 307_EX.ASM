@@ -19,19 +19,16 @@ instruc		db	10,'   Вам предлагается ответить на семь вопросов.',13,10
 		db	'Нажмите любую клавишу...$'
 ask4surname	db	'Введите вашу фамилию: $'
 sur_stat	db	30h,24,0,'Используйте только русские буквы, по окончанию ввода нажмите [─┘]',0
-stat_arsehole	db	0C0h,24,0,'ТЕСТ ЗАВАЛЕН',0
-stat_botan	db	0A0h,24,0,'Поздравляю, ТЕСТ ПРОЙДЕН',0
+stat_arsehole	db	0C0h,24,0,'ТЕСТ ЗАВАЛЕН :(',0
+stat_botan	db	0A0h,24,0,'ТЕСТ ПРОЙДЕН :)',0
 
-final_sur	db	'Фамилия        : $'
+final_sur	db	'Фамилия      : $'
 
 final_screen	db	13,10
-		db	'Время начала   : '
-st_hour		db	'00:00:00'
-		db	13,10
-final_end	db	'Время окончания: '
+final_end	db	'Время        : '
 fn_hour		db	'00:00:00'
 		db	13,10
-final_q		db	'Ваш результат  : '
+final_q		db	'Ваш результат: '
 done		db	'00/00'
 		db	13,10,10
 		db	'Позовите преподавателя.$'
@@ -65,6 +62,7 @@ pss:
 	xor	bx,bx
 	int	10h
 
+restart:
 	mov	bl,1Bh
 	call	fclsa
 	mov	bx,0B1h
@@ -105,12 +103,10 @@ pss:
 	xor	ax,ax					;Выключим курсор нах!
 	call	fcursor
 
-	mov	bx,offset s_time			;Запомним время начала
-	call	gettime
-	mov	cx,3
-	mov	bp,offset s_time
-	mov	di,offset st_hour
-	call	conv_t
+	xor	ah,ah
+	int	1ah
+	mov	word ptr [ticks_start],dx
+	mov	word ptr [ticks_start+2],cx
 
 	xor	cx,cx
 	mov	cl,byte ptr [q_total]
@@ -119,6 +115,7 @@ pss:
 ;-------------------------
 exloop:	push	cx
 	mov	bl,1Bh
+
 	call	infobar
 	call	gen_num
 	call	ask
@@ -129,11 +126,28 @@ exloop:	push	cx
 @@ex20:	pop	cx
 	loop	exloop
 
-aa:	mov	bx,offset s_time
-	call	gettime
+aa:	xor	ah,ah
+	int	1ah
+	mov	word ptr [ticks_end],dx
+	mov	word ptr [ticks_end+2],cx
+
+	mov	ax,word ptr [ticks_end]
+	sub	ax,word ptr [ticks_start]
+	mov	word ptr [waited],ax
+
+	mov	ax,word ptr [ticks_end+2]
+	sbb	ax,word ptr [ticks_start+2]
+
+	mov	word ptr [waited+2],ax
+
+	mov	si,offset waited
+	mov	di,offset secs_tot
+	mov	bx,18
+	call	div32			;Считаем секунды
+	call	divtime			;И время
 
 	mov	cx,3
-	mov	bp,offset s_time
+	mov	bp,offset test_time
 	mov	di,offset fn_hour
 	call	conv_t
 
@@ -174,8 +188,8 @@ aus:	call	font_r
 	call	fcursor
 	mov	bl,7
 	call	fclsa
-	ret
 
+	ret
 
 INCLUDE INCLUDE\NUM2ASC.PRC
 INCLUDE INCLUDE\307_EX.INC			;Процедурки :)
@@ -189,7 +203,13 @@ q_togo		db	5			;Барьер, кот. необходимо преодолеть
 q_num		dw	0			;Количество вопросов
 l_count		dw	0			;Количество линий в буфере
 surname		db	20 dup (?)		;Фамилия студента
-s_time		db	3 dup (?)		;-- Время начала|окончания опроса
+
+ticks_start	dw	2 dup (?)		;Засекаем тики :)
+ticks_end	dw	2 dup (?)		;Тики в конце теста
+waited		dw	2 dup (?)		;Сколько тиков тестировались
+secs_tot	dw	2 dup (?)		;Сколько секундов тестировались :)
+test_time	db	3 dup (?)		;Финальное время теста!
+
 stat		dw	?
 fhandle		dw	?
 fsize		dw	?			;Размер файла

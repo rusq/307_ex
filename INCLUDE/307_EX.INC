@@ -1,3 +1,33 @@
+;SI - divident, DI - result, BX - divisor
+div32	proc	near
+	mov	ax,word ptr [si+2]
+	xor	dx,dx
+	div	bx
+	mov	word ptr [di+2],ax
+	mov	ax,word ptr [si]
+	div	bx
+	mov	word ptr [di],ax
+	ret
+div32	endp
+
+divtime	proc	near
+	mov	bx,3600
+	mov	ax,word ptr [secs_tot+2]
+	xor	dx,dx
+	div	bx
+	mov	ax,word ptr [secs_tot]
+	div	bx
+	mov	byte ptr [test_time],al
+
+	mov	ax,dx
+	xor	dx,dx
+	mov	bx,60
+	div	bx
+	mov	byte ptr [test_time+1],al
+	mov	byte ptr [test_time+2],dl
+	ret
+divtime	endp
+
 ;Процедура конвертирования времени
 ;На входе BP - адрес конвертируемого времени, DI - адрес буфера для времени, CX - количество разрядов
 conv_t	proc	near
@@ -388,7 +418,7 @@ infobar	proc	near
 	pop	ax
 	ret
 @@info_bar	db	30h,24,0,'Нажмите цифры ответов, которые Вы считаете правильными, затем [─┘]',0
-@@title_bar	db	0B1h,0,0,'307_EX.COM: Тест по Экологии ver 1.0beta - ',0F7h,' 2k2 Gilyazov R.',0
+@@title_bar	db	0B1h,0,0,'307_EX.COM: Тест по Экологии ver 1.0 - ',0F7h,' 2k2 Gilyazov R.',0
 infobar	endp
 
 gen_num	proc	near				;Генерирование номера вопроса
@@ -791,7 +821,7 @@ rand16	endp
 
 genseed	proc	near		;stores seed in local var. WORD __seed
 	push	cx dx
-	xor	ah,00
+	xor	ah,ah
 	int	1ah
 	mov	ax,dx
 	add	ax,cx
