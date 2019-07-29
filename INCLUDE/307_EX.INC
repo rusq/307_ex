@@ -1,3 +1,75 @@
+;Тест строк на помеченность
+;На входе: 
+;	   SI - адрес строки. 
+;На выходе: DL - помеченая строка или нет? (FF - если нет, 1 если да)
+;Строка должна кончаться символом 0d (идеально для текстовых файлов)
+l_test	PROC	NEAR		
+	push	cx
+	push	bp
+	push	ax
+
+	mov	cx,0FFFFh
+	xor	bp,bp
+	xor	dl,dl
+@@10:	lodsb
+	cmp	al,0Dh
+	je	@@99
+	cmp	al,'@'			;Символ начала правильного ответа
+	jne	@@11
+	mov	dl,1
+	jmp	short @@15
+@@11:	cmp	al,'\'			;Символ начала вопроса
+	je	@@15
+	inc	bp
+	cmp	bp,word ptr margin
+	jb	@@12
+	cmp	al,' '		; Это пробел?
+	jne	@@12
+@@12:
+@@15:	loop	@@10
+@@99:
+	cmp	dl,1
+	je	@@100
+	mov	dl,0FFh
+@@100:	pop	ax
+	pop	bp
+	pop	cx
+	ret
+
+l_test	ENDP
+
+;-------------------------------------------------------------------------------
+; FCURSOR : Turn Cursor off/on
+;   In:
+;      AL : Cursor status
+;          AL = 0 - cursor turns off
+;          AL != 0 - cursor turns on
+;-------------------------------------------------------------------------------
+fcursor	proc	near
+	pushf
+	push	bx cx
+	push	ax
+	mov	ah,03h
+	mov	bh,00h
+	int	10h
+	pop	ax
+
+	cmp	ax,0
+	jne	@@10
+
+	or	ch,00100000b
+	jmp	short @@20
+
+@@10:	and	ch,11011111b
+
+@@20:	mov	ah,01h
+	int	10h
+	pop	cx bx
+	popf
+
+	ret
+fcursor	endp
+
 ;Infobar - выводит балку с инфой внизу  (на 25й строке) и титульную балку вверху (на 1й строке)
 infobar	proc	near
 	push	ax
@@ -279,7 +351,6 @@ w_wrap	PROC	NEAR
 	jne	@@11
 	mov	dl,1
 	jmp	short @@15
-	je	@@15
 @@11:	cmp	al,'\'			;Символ начала вопроса
 	je	@@15
 	inc	bp

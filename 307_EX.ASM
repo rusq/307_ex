@@ -34,6 +34,8 @@ pst:	mov	bx,offset password
 	ret
 
 pss:
+	xor	ax,ax
+	call	fcursor
 	call	font_l				;Loading screen font
 	call	open				;Opening file with data
 	call	passwd				;Decrypting password
@@ -67,6 +69,8 @@ exloop:	call	gen_num
 	
 
 aus:	call	font_r
+	mov	al,1
+	call	fcursor
 	ret
 
 ;ASK: Задаёт вопрос номер AX
@@ -78,7 +82,6 @@ aus:	call	font_r
 ask	proc	near
 
 	mov	word ptr cs:[@@rite],0			;Инициализация переменных
-	mov	byte ptr cs:[@@num_pressed],0
 	mov	byte ptr cs:[@@count],0
 
 	mov	bx,ax
@@ -109,7 +112,7 @@ ask	proc	near
 
 	mov	si,word ptr [t_rows+bx]		;Printing question
 	push	bx
-	mov	bx,NoLite
+	mov	bl,byte ptr cs:[@@NoLite]
 	mov	dh,1
 	call	w_wrap
 	pop	bx
@@ -121,7 +124,7 @@ ask	proc	near
 
 @@10:	mov	si,word ptr [t_rows+bx]
 	push	bx
-	mov	bx,NoLite
+	mov	bl,byte ptr cs:[@@NoLite]
 	push	bx
 	xor	bx,bx
 	mov	bl,byte ptr cs:[@@count]
@@ -142,18 +145,20 @@ ask	proc	near
 	int	16h
 
 	cmp	ah,1Ch
-	je	@@return
-	cmp	al,31h
+	jne	@@_1
+	jmp	@@return
+@@_1:	cmp	al,31h
 	jb	@@inkey
 	cmp	al,39h
 	ja	@@inkey
 	and	al,0Fh					;Преобразуем к двоичной байде :)
 	cmp	al,byte ptr cs:[@@answ]
 	ja	@@inkey
-	mov	byte ptr cs:[@@num_pressed],1
+
 	xor	ah,ah
 	mov	bx,ax
 	dec	bx
+	push	bx
 	mov	dh,byte ptr cs:[@@screen_ans+bx]
 	mov	ax,word ptr cs:[@@ofs_in_rows]		;Указатель на вопрос
 	shl	ax,1
@@ -161,35 +166,105 @@ ask	proc	near
 	shl	bx,1					;Указатель на пункт * 2
 	add	bx,ax
 	mov	si,word ptr [t_rows+bx]
-	mov	bx,HiLite
-	call	w_wrap
+	pop	bx
+	push	bx
+	cmp	byte ptr cs:[@@marked_ans+bx],0		;Текущий вопрос помечен?
+	jne	@@unmark				;Подопытный решил отменить вопрос.
 
-	jmp	short @@inkey
+	mov	bl,byte ptr cs:[@@HiLite]
+	call	w_wrap
+	pop	bx
+	mov	byte ptr cs:[@@marked_ans+bx],1
+	jmp	@@inkey
+
+@@unmark:
+	mov	bl,byte ptr cs:[@@NoLite]
+	call	w_wrap
+	pop	bx
+	mov	byte ptr cs:[@@marked_ans+bx],0
+	jmp	@@inkey
 	
 
 @@return:
-	cmp	byte ptr cs:[@@num_pressed],0		;Выбран хоть один ответ?
-	je	@@inkey					;Нет - на inkey
-	
+	mov	cl,byte ptr cs:[@@answ]
+	xor	ch,ch
+	xor	ax,ax
+	mov	bx,cx
+@@99:	dec	bx
+	add	al,byte ptr [@@marked_ans+bx]
+	loop	@@99
+	or	ax,ax
+	jnz	@@out					;Нет - на inkey
+	mov	si,offset cs:[@@stat_err1]
+	call	change_stat
+	jmp	@@inkey
 
-	mov	bx,word ptr cs:[@@rite]
+@@out:	
+;Подсчёт количества правильных и не - ответов
+	mov	bx,word ptr cs:[@@ofs_in_rows]
+	add	bx,2
+	shl	bx,1
+	xor	cx,cx
+	mov	cl,byte ptr cs:[@@answ]
+	mov	bp,cx
+
+@@o10:	dec	bp
+	mov	al,byte ptr cs:[@@marked_ans+bp]
+	or	al,al
+	jz	@@o99					;Следующий
+
+	push	bp
+	push	bx
+	shl	bp,1
+	add	bx,bp
+	mov	si,word ptr [t_rows+bx]
+	call	l_test
+	pop	bx
+	pop	bp
+
+	cmp	dl,1
+	je	@@o80
+	mov	byte ptr cs:[@@rite],0
+	jmp	short @@xit
+
+@@o80:
+	inc	byte ptr cs:[@@rite]
+@@o99:	loop	@@o10
+
+@@xit:	mov	bx,word ptr cs:[@@rite]
 	ret
 
-NoLite		equ	1Bh
-HiLite		equ	31h
+@@NoLite	db	1Bh
+@@HiLite	db	30h
 
 @@answ		db	0				;Количество ответов
 @@rite		db	0				;Правильно отвечено
 		db	0				;Всего вопросов
 @@que		dw	0				;Номер вопроса
 @@ofs_in_rows	dw	0				;Смещение вопроса в Общей куче
-@@num_pressed	db	0
 @@screen_ans	db	9 dup (0)
+@@marked_ans	db	9 dup (0)
 @@count		db	0
 @@beg_ans	dw	0
-
+@@stat_err1	db	34h,24,0,'Вы должны выбрать хотя бы один пункт',0
 ask	endp
 
+;На входе: Si - адрес строки
+
+change_stat	proc	near
+	push	ax
+	push	bx
+	push	cx
+	mov	al,7
+	int	29h
+	mov	bx,1830h
+	call	faline
+	call	fwritea
+	pop	cx
+	pop	bx
+	pop	ax
+	ret
+change_stat	endp
 INCLUDE INCLUDE\307_EX.INC			;Процедурки :)
 INCLUDE INCLUDE\FONTLOAD.INC
 

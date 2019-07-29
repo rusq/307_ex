@@ -64,4 +64,4 @@ rem	Собсно, установка :)
 	echo Установка успешно завершена. Спасибо за Ваш выбор.
 
 :end
-	if not	-%1==- echo (C) 2002 GruppenFuhrer.
+	if not	-%1==- echo (C) 2002 Gilyazov R..
