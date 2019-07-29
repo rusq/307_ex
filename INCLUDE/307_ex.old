@@ -426,52 +426,27 @@ infobar	proc	near
 	pop	ax
 	ret
 @@info_bar	db	30h,24,0,'Нажмите цифры ответов, которые Вы считаете правильными, затем [─┘]',0
-;!!ВЕРСИЯ
-@@title_bar	db	0B1h,0,0,'307_EX.COM: Программа тестирования v.1.11 - ',0F7h,' 2k2 Gilyazov R.',0
+@@title_bar	db	0B1h,0,0,'307_EX.COM: Программа тестирования ver 1.1.0 - ',0F7h,' 2k2 Gilyazov R.',0
 infobar	endp
 
 gen_num	proc	near				;Генерирование номера вопроса
         push	bx
 	push	dx
-	push	cx
-	mov	cx,word ptr [q_num]		;всего вопросов
-@@10:	call	random
-	mov	ax,dx
+	mov	dx,word ptr [q_num]		;всего вопросов
+@@10:	call	rand16
+	cmp	ax,dx
+	ja	@@10
+	or	ax,ax
+	jz	@@10
 	dec	ax
 	mov	bx,ax
 	cmp	byte ptr [t_asked+bx],1
 	je	@@10
 	mov	byte ptr [t_asked+bx],1
-	pop	cx
 	pop	dx
 	pop	bx
 	ret
 gen_num	endp
-
-;RANDOM NUMBER GENERATOR
-;IN:
-;  CX=random number ranges
-;OUT:
-;  DX=random number
-random	proc    near
-	push	ax
-	push	bx
-	mov	ax,cs:[__seed]
-	mov	bx,9821
-	imul	bx
-	inc	ax
-	ror	al,1
-	add	ax,8191
-	rol	ah,1
-	mov	cs:[__seed],ax
-                      
-	xor	dx,dx
-	div	cx
-	pop	bx
-	pop	ax
-	ret
-random	endp
-
 
 ;-------------------------------------------------------------------------------
 ; FCLSA : clears the screen with colour you specified
@@ -841,6 +816,17 @@ passwd	proc	near
 	ret
 passwd	endp
 
+rand16	proc	near
+	push	bx
+	call	rand8
+	mov	bx,ax
+	call	rand8
+	mov	ah,bl
+	pop	bx
+	ret
+rand16	endp
+
+
 genseed	proc	near		;stores seed in local var. WORD __seed
 	push	cx dx
 	xor	ah,ah
@@ -851,3 +837,21 @@ genseed	proc	near		;stores seed in local var. WORD __seed
 	pop	dx cx
 	ret
 genseed	endp
+
+rand8	proc	near		;Returns random number in WORD __seed
+	push	bx cx
+	mov	ax,word ptr __seed
+	mov	cx,8
+newbit:	mov	bx,ax
+	and	bx,002Dh
+	xor	bh,bl
+	clc
+	jpe	shift
+	stc
+shift:	rcr	ax,1
+	loop	newbit
+	mov	word ptr __seed,ax
+	xor	ah,ah
+	pop	cx bx
+	ret
+rand8	endp
