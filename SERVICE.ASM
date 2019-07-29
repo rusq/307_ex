@@ -14,7 +14,9 @@ file_txt	db	'307_ex.txt',0
 
 copyright	db	'SERVICE.COM - (C) 2002 Gilyazov R.',13,10
 		db	'8x16 Russian VGA font (C) 1989 Pete I. Kvitek',13,10
-		db	'Dedicated to the bright memory of Dmitry Gurtyak (1971-1998)$'
+		db	'Dedicated to the bright memory of Dmitry Gurtyak (1971-1998)',13,10,10,'$'
+keine		db	'Никаких операций не выполнено$'
+success		db	'Операция завершена успешно$'
 msg		db	'Выберите функцию:$'
 menu		db	' Расшифровать ',0
 		db	' Зашифровать  ',0
@@ -23,10 +25,12 @@ newpass		db	13,'Введите пароль для шифрования (8 символов)',13,10
 		db	'(8 символов): $'
 confirm		db	13,10,'Повторите пароль: $'
 getpass		db	13,' ',0FDh,' $'
-endpass		db	13,10,10,'Неверный пароль',7,'$'
+endpass		db	'Неверный пароль',7,'$'
 error1		db	13,10,'Вы ошиблись. Повторите попытку',13,10,10,'$'
 error2		db	13,10,'Пароль должен содержать 8 символов',13,10,10,'$'
 error3		db	13,10,'Фатальная ошибка. Продолжение невозможно$'
+
+out_message	dw	keine
 
 menuitems	equ	3
         
@@ -82,11 +86,13 @@ call_crypt:
 	call	crypt		;Шифруем пароль
 	call	savepass	;Сохраняем в 307_ex.com
 	call	txt_2_dat	;Шифруем сам фаёл данных
+	mov	word ptr [out_message],offset success
 	jmp	short exit	;Выход
 
 call_decrypt:
 	call	decrypt
 	call	dat_2_txt
+	mov	word ptr [out_message],offset success
 
 exit:	
 	call	emptypass	;Очищаем парольные буфера (! :) )
@@ -102,10 +108,14 @@ exit:
 	mov	bx,0707h
 	int	10h
 	call	font_r		;Восстанавливаем оригинальный шрифт
+	mov	ah,9
+	mov	dx,word ptr [out_message]
+	int	21h
 	ret
 
 INCLUDE INCLUDE\SERVICE.INC	;Здесь всякие рулезные процедурки :)
 INCLUDE INCLUDE\FONTLOAD.INC
+
 
 passchars	db	?		;Количество символов в пароле
 fhandle		dw	?		;ФайлОвая рукоятка

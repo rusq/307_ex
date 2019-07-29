@@ -9,10 +9,14 @@ password	db	32 dup (0FFh)		;16 байт - зашифр. пароль, 16 байт - мусор
 dataf		db	'307_ex.dat',0
 fatal1		db	'Не найден файл с данными. Продолжение невозможно.$'
 fatal2		db	'Данная программа не настроена$'
-inst_title	db	128+1Ch,0,29,'ПРОЧИТАЙТЕ ВНИМАТЕЛЬНО!',0
-instruc		db	10,'Вам предлагается ответить на семь вопросов.',13,10
+inst_title	db	0B1h,0,29,'ПРОЧИТАЙТЕ ВНИМАТЕЛЬНО!',0
+instruc		db	10,'   Вам предлагается ответить на семь вопросов.',13,10
 		db	'Для выбора ответа следует использовать клавиши [1]-[9].',13,10
-		db	'Клавиша [Enter] служит для подтверждения выбора и перехода на следующий вопрос.',13,10,'$'
+		db	'Клавиша [Enter] служит для подтверждения выбора и перехода на следующий вопрос.',13,10
+		db	'   Между вопросами возможна задержка из-за несовершенства алгоритма генерации ',13,10
+		db	'случайных чисел (зависит от тактовой частоты CPU)',13,10
+		db	'   Удачи!',13,10,10
+		db	'Нажмите любую клавишу для начала тестирования...$'
 realstart:
 	cld
 	mov	ax,0FACEh
@@ -21,10 +25,7 @@ realstart:
 	je	pst
 	call	fatal
 
-pst:	mov	ax,1003h
-	mov	bx,0001h
-	int	10h
-	mov	bx,offset password
+pst:	mov	bx,offset password
 	cmp	byte ptr [bx],0FFh
 	jne	pss
 	mov	dx,offset fatal2
@@ -40,9 +41,13 @@ pss:
 	call	close				;Получаем длину файла и закрываем его
 	call	genseed				;Генерируем seed
 	call	fill_tbl			;Заполняем таблицы (возможна ошибка)
-	mov	bl,70h
+	mov	ax,1003h
+	xor	bx,bx
+	int	10h
+
+	mov	bl,1Bh
 	call	fclsa
-	mov	bx,1Ch
+	mov	bx,0B1h
 	call	faline
 	mov	si,offset inst_title
 	call	fwritea
@@ -51,19 +56,17 @@ pss:
 	mov	dx,offset instruc
 	int	21h
 
-	call	gen_num
-	call	ask
 	xor	ax,ax
 	int	16h
 
-;	mov	bx,offset t_rows
-;	mov	si,word ptr [bx]
-;	call	w_wrap
-;	add	bx,4
-;	mov	si,word ptr [bx]
-;	call	w_wrap
+	call	infobar
+	
+exloop:	call	gen_num
+	call	ask
 
-	call	font_r
+	
+
+aus:	call	font_r
 	ret
 
 ;ASK: Задаёт вопрос номер AX
@@ -73,6 +76,11 @@ pss:
 ;	BH - всего правильных ответов
 ;	BL - выбрано правильных ответов
 ask	proc	near
+
+	mov	word ptr cs:[@@rite],0			;Инициализация переменных
+	mov	byte ptr cs:[@@num_pressed],0
+	mov	byte ptr cs:[@@count],0
+
 	mov	bx,ax
 	push	ax
 
@@ -80,6 +88,7 @@ ask	proc	near
 	mov	bp,bx
 	xor	bx,bx
 	dec	bp
+	js	@@qq
 @@00:	mov	al,byte ptr [t_answ+bp]
 	xor	ah,ah
 	add	bx,ax
@@ -88,38 +97,96 @@ ask	proc	near
 	dec	bp
 	loop	@@00
 
-	mov	word ptr [@@ofs_in_rows],bx	
+@@qq:	mov	word ptr cs:[@@ofs_in_rows],bx	
 
 	pop	bx
 	mov	cl,byte ptr [t_answ+bx]
-;	xor	ch,ch
+	mov	byte ptr cs:[@@answ],cl
 
-	mov	bx,word ptr [@@ofs_in_rows]
+	mov	bx,word ptr cs:[@@ofs_in_rows]
 
 	shl	bx,1				;Multiplying by 2 to receive offset in t_rows
 
 	mov	si,word ptr [t_rows+bx]		;Printing question
+	push	bx
+	mov	bx,NoLite
+	mov	dh,1
 	call	w_wrap
+	pop	bx
 
 	add	bx,4				;Skipping amount of answers (we
-	mov	word ptr [@@rite],0
+	mov	word ptr cs:[@@rite],0
+	mov	ax,word ptr [t_rows+bx]
+	mov	word ptr cs:[@@beg_ans],ax		;Адрес первого ответа
 
 @@10:	mov	si,word ptr [t_rows+bx]
+	push	bx
+	mov	bx,NoLite
+	push	bx
+	xor	bx,bx
+	mov	bl,byte ptr cs:[@@count]
+	mov	byte ptr cs:[@@screen_ans+bx],dh
+	pop	bx
 	call	w_wrap
+	inc	byte ptr cs:[@@count]
+	pop	bx
 	cmp	dl,1
 	jne	@@20
-	inc	byte ptr [@@rite+1]
+	inc	byte ptr cs:[@@rite+1]
 @@20:	inc	bx
 	inc	bx
 	loop	@@10
 
-	mov	bx,word ptr [@@rite]
+@@inkey:
+	xor	ax,ax
+	int	16h
+
+	cmp	ah,1Ch
+	je	@@return
+	cmp	al,31h
+	jb	@@inkey
+	cmp	al,39h
+	ja	@@inkey
+	and	al,0Fh					;Преобразуем к двоичной байде :)
+	cmp	al,byte ptr cs:[@@answ]
+	ja	@@inkey
+	mov	byte ptr cs:[@@num_pressed],1
+	xor	ah,ah
+	mov	bx,ax
+	dec	bx
+	mov	dh,byte ptr cs:[@@screen_ans+bx]
+	mov	ax,word ptr cs:[@@ofs_in_rows]		;Указатель на вопрос
+	shl	ax,1
+	add	ax,4					;Пропускаем вопрос и проч
+	shl	bx,1					;Указатель на пункт * 2
+	add	bx,ax
+	mov	si,word ptr [t_rows+bx]
+	mov	bx,HiLite
+	call	w_wrap
+
+	jmp	short @@inkey
+	
+
+@@return:
+	cmp	byte ptr cs:[@@num_pressed],0		;Выбран хоть один ответ?
+	je	@@inkey					;Нет - на inkey
+	
+
+	mov	bx,word ptr cs:[@@rite]
 	ret
+
+NoLite		equ	1Bh
+HiLite		equ	31h
+
 @@answ		db	0				;Количество ответов
 @@rite		db	0				;Правильно отвечено
 		db	0				;Всего вопросов
 @@que		dw	0				;Номер вопроса
 @@ofs_in_rows	dw	0				;Смещение вопроса в Общей куче
+@@num_pressed	db	0
+@@screen_ans	db	9 dup (0)
+@@count		db	0
+@@beg_ans	dw	0
 
 ask	endp
 

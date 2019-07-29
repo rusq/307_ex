@@ -15,11 +15,8 @@ decrypt	proc	near
 
 	cmp	cx,8
 	je	@@10
+	mov	word ptr [out_message],offset endpass
 	call	exit
-
-	mov	ah,9
-	mov	dx,offset endpass
-	int	21h
 
 	mov	ax,4c04h
 	int	21h

@@ -1,5 +1,5 @@
-;DECTSR.ASM: Резидентный (де)шифратор с переносом кода в PSP
-;резидент: 288 байт
+;MSAVT.ASM: Резидентный (де)шифратор с переносом кода в PSP
+;резидент: 288 байт (MSDOS 7.1), 272 байта (TOSHIBA DOS 5.0)
 ;без переноса занимал 416 :)
 
 ;Вешается на прерывание 21h
@@ -149,9 +149,5 @@ init:
 	int	27h
 
 not_install:
-	mov	dx,offset mess
-	mov	ah,9
-	int	21h
 	ret
-mess	db	'Already in memory$'
 	end	start

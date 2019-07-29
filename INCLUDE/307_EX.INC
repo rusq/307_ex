@@ -1,13 +1,45 @@
+;Infobar - выводит балку с инфой внизу  (на 25й строке) и титульную балку вверху (на 1й строке)
+infobar	proc	near
+	push	ax
+	push	bx
+	push	dx
+	mov	bl,17h
+	call	fclsa
+	mov	bx,0B1h
+	call	faline
+	mov	bx,1830h
+	call	faline
+	mov	si,offset @@info_bar
+	call	fwritea
+	mov	si,offset @@title_bar
+	call	fwritea
+	mov	ah,02
+	xor	bx,bx
+	mov	dx,0100h
+	int	10h
+	pop	dx
+	pop	bx
+	pop	ax
+	ret
+@@info_bar	db	30h,24,0,'Нажмите цифры ответов, которые Вы считаете правильными, затем [Enter]',0
+@@title_bar	db	0B1h,0,0,'307_EX.COM: Тест по Экологии ver 1.0beta - ',0F7h,' 2k2 Gilyazov R.',0
+infobar	endp
+
 gen_num	proc	near				;Генерирование номера вопроса
         push	bx
+	push	dx
+	mov	dx,word ptr [q_num]
 @@10:	call	rand16
-	cmp	ax,word ptr [q_num]
+	cmp	ax,dx
 	ja	@@10
+	or	ax,ax
+	jz	@@10
 	dec	ax
 	mov	bx,ax
 	cmp	byte ptr [t_asked+bx],1
 	je	@@10
 	mov	byte ptr [t_asked+bx],1
+	pop	dx
 	pop	bx
 	ret
 gen_num	endp
@@ -216,27 +248,42 @@ close	PROC	NEAR			;Процедура закрытия файла с получением его размера
 	ret
 close	ENDP
 
-w_wrap	PROC	NEAR		;Перенос слов, которые не влезают в 80 символов
-				;На входе - SI - адрес строки. Строка должна кончатся символом 0d (идеально для текстовых файлов)
+;Перенос слов, которые не влезают в 80 символов
+;На входе: DH - строка, в которой печатать
+;	   SI - адрес строки. 
+;	   BL - цвет символов
+;На выходе: DL - помеченая строка или нет? (FF - если нет, 1 если да)
+;	   DH - строка, в которой кончилась печать поебени.
+;Строка должна кончаться символом 0d (идеально для текстовых файлов)
+;Используются средства BIOS.
+w_wrap	PROC	NEAR		
 	push	cx
-	push	bx
+	push	bp
 	push	ax
+
+	push	bx
+	mov	ah,02			;Устанавливаем курсор на начало строки DH
+	xor	bx,bx
+	xor	dl,dl
+	int	10h
+	pop	bx
+
 	mov	word ptr [margin],63
 	mov	cx,0FFFFh
-	xor	bx,bx
+	xor	bp,bp
 	xor	dl,dl
 @@10:	lodsb
 	cmp	al,0Dh
 	je	@@99
 	cmp	al,'@'			;Символ начала правильного ответа
 	jne	@@11
-	inc	dl
+	mov	dl,1
 	jmp	short @@15
 	je	@@15
 @@11:	cmp	al,'\'			;Символ начала вопроса
 	je	@@15
-	inc	bx
-	cmp	bx,word ptr margin
+	inc	bp
+	cmp	bp,word ptr margin
 	jb	@@12
 	cmp	al,' '		; Это пробел?
 	jne	@@12
@@ -246,16 +293,43 @@ w_wrap	PROC	NEAR		;Перенос слов, которые не влезают в 80 символов
 	mov	al,10
 	int	29h
 	mov	al,' '
-	int	29h
-	int	29h
-@@12:	int	29h
+	call	@@putch
+	call	@@putch
+@@12:	call	@@putch
 @@15:	loop	@@10
 @@99:	int	29h
 	mov	al,10
 	int	29h
-	pop	ax
-	pop	bx
+	push	dx
+	mov	ah,03
+	xor	bx,bx
+	int	10h
+	xchg	dh,ch
+	pop	dx
+	xchg	ch,dh
+	cmp	dl,1
+	je	@@100
+	mov	dl,0FFh
+@@100:	pop	ax
+	pop	bp
 	pop	cx
+	ret
+@@putch:
+	push	ax
+	push	bx
+	push	cx
+	push	ds
+	mov	cx,0040h
+	mov	ds,cx
+	mov	ah,09
+	xor	bh,bh
+	mov	cl,1
+	int	10h
+	inc	byte ptr ds:[0050h]
+	pop	ds
+	pop	cx
+	pop	bx
+	pop	ax
 	ret
 margin	dw	63
 w_wrap	ENDP
